@@ -1,25 +1,31 @@
 args = ["-f", "input.txt", "--stuff", "hello", "world", "test", "--debug"]
 
-macro cli(*opts)
+macro cli(opts)
   # This will hold our option names
   {% options = [] of String %}
 
   # Lets go for all options we have
-  {% for opt in opts %}
+  {% for receiver, block in opts %}
        # Each opt is receiver.>>{ |block.args| block.body }
 
        # Receiver looks like: "-short --long"
-       {% short = opt.receiver.split.first %}
+       {% short = receiver.split.first %}
        {% short_name = short[1..-1] %}
-       {% long = opt.receiver.split.last %}
+       {% long = receiver.split.last %}
        {% long_name = long[2..-1] %}
 
-       # Extract args and args size from block
-       {% args = opt.block.args %}
-       {% arg_size = opt.block.args.length %}
-
-       # Extract block body from block
-       {% block_body = opt.block.body %}
+       # Extract args, args size and body from block
+       {% if block.receiver.is_a?(ArrayLiteral) %}
+         # of form `[a, b, c].> { ... }` - there are arguments
+         {% args = block.receiver %}
+         {% arg_size = args.length %}
+         {% block_body = block.block.body %}
+       {% else %}
+         # of form `0.> { ... }` - there are no arguments
+         {% args = [] of String %}
+         {% arg_size = 0 %}
+         {% block_body = block.block.body %}
+       {% end %}
 
        # Register option into our list of options
        {% options << long_name %}
@@ -90,10 +96,10 @@ def show_help
   puts "Help"
 end
 
-cli "-f --file" .>>{ |f| @@file = f },
-    "-s --stuff".>>{ |a, b, c| pp({a, b, c}) },
-    "-d --debug".>>{ $DEBUG = true },
-    "-h --help" .>>{ show_help }
+cli({"-f --file"  => [f].> { @@file = f },
+     "-s --stuff" => [a, b, c].> { pp({a, b, c}) },
+     "-d --debug" => 0.> { $DEBUG = true },
+     "-h --help"  => 0.> { show_help }})
 
 pp @@file
 pp $DEBUG
